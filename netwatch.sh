@@ -3,7 +3,6 @@
 # Usage: netwatch.sh [--dry-run] [--persistent] <command> [args...]
 
 VERSION="1.3.1"
-REPOSITORY_URL="https://github.com/sudomarc/NETWATCH"
 UPDATE_URL="https://raw.githubusercontent.com/sudomarc/NETWATCH/main/netwatch.sh"
 SCRIPT_NAME=$(basename "$0")
 
@@ -274,8 +273,12 @@ ensure_chain(){
 
 rollback_ipv4(){
     local ip=$1 mac=$2 hook_added=$3 chain_created=$4
-    "$hook_added" && iptables -D FORWARD -j NETWATCH_BLOCK >/dev/null 2>&1 || true
-    [[ -n "$mac" && "$mac" != -- ]] && iptables -D NETWATCH_BLOCK -m mac --mac-source "$mac" -j DROP >/dev/null 2>&1 || true
+    if "$hook_added"; then
+        iptables -D FORWARD -j NETWATCH_BLOCK >/dev/null 2>&1 || true
+    fi
+    if [[ -n "$mac" && "$mac" != -- ]]; then
+        iptables -D NETWATCH_BLOCK -m mac --mac-source "$mac" -j DROP >/dev/null 2>&1 || true
+    fi
     iptables -D NETWATCH_BLOCK -d "$ip" -j DROP >/dev/null 2>&1 || true
     iptables -D NETWATCH_BLOCK -s "$ip" -j DROP >/dev/null 2>&1 || true
     if "$chain_created"; then
@@ -307,9 +310,10 @@ stop_arp(){
     while IFS= read -r pid; do
         [[ "$pid" =~ ^[0-9]+$ ]] || continue
         cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
-        [[ "$cmdline" == *arpspoof* && "$cmdline" == *"-i $IFACE"* &&
-           "$cmdline" == *"-t $first_target"* && "$cmdline" == *"$second_target"* ]] &&
+        if [[ "$cmdline" == *arpspoof* && "$cmdline" == *"-i $IFACE"* &&
+              "$cmdline" == *"-t $first_target"* && "$cmdline" == *"$second_target"* ]]; then
             kill "$pid" 2>/dev/null || true
+        fi
     done < "$pidfile"
     rm -f -- "$pidfile"
 }
@@ -479,7 +483,8 @@ export_scan(){
     check_deps export
     detect_network
     ensure_config_dir
-    local outfile="$CONFIG_DIR/export_$(date '+%Y%m%d_%H%M%S').$fmt"
+    local outfile
+    outfile="$CONFIG_DIR/export_$(date '+%Y%m%d_%H%M%S').$fmt"
     scan "$fmt" > "$outfile" || die "Export failed."
     ok "Saved to $outfile"
 }
