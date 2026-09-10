@@ -1,3 +1,4 @@
+# Temporary one-shot maintenance automation for PR #7.
 name: Maintenance - ShellCheck fix
 
 on:
