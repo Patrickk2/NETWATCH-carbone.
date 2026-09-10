@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "fix/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Bash syntax
+        run: bash -n netwatch.sh netwatch-ipv6.sh netwatch-router.sh
+
+      - name: ShellCheck
+        run: shellcheck netwatch.sh netwatch-ipv6.sh netwatch-router.sh
+
+      - name: Validation tests
+        run: bash tests/test_validation.sh
+
+      - name: Output tests
+        run: bash tests/test_output.sh
+
+      - name: CLI tests
+        run: bash tests/test_cli.sh
+
+      - name: Firewall tests
+        run: sudo -E bash tests/test_firewall.sh
+
+      - name: IPv6 tests
+        run: sudo -E bash tests/test_ipv6.sh
+
+      - name: Router tests
+        run: bash tests/test_router.sh
