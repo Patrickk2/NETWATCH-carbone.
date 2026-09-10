@@ -1,51 +1,76 @@
-# Contributing to netwatch
+# Contributing to NETWATCH
 
-Thanks for contributing to netwatch.
+NETWATCH is a Linux-only Bash project. Contributions should preserve a small, auditable implementation and should prefer correctness over feature count.
 
-## Scope
+## Engineering rules
 
-netwatch is a Linux-only Bash project. Keep the repository focused on `netwatch.sh` and Linux tooling.
+Follow these priorities:
 
-## Getting Started
+1. correctness;
+2. security;
+3. simplicity;
+4. maintainability;
+5. optimization only after verification.
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/my-feature`.
-3. Make your changes.
-4. Run `bash -n netwatch.sh` and relevant functional tests.
-5. Run ShellCheck when available.
-6. Submit a pull request with a clear description of the change and validation performed.
+Do not rewrite NETWATCH in another language or add Windows, PowerShell, Android, or Termux implementations.
 
-## Guidelines
+Never introduce `eval`, unsafe shell interpolation, silent error swallowing, or insecure SSH host-key handling.
 
-- Keep it Bash; do not rewrite the project in another language.
-- Preserve the single-file Linux implementation unless a structural change is technically justified.
-- Test `--dry-run` before changes involving block, throttle, or reset.
-- Document new commands in both `help` and `README.md`.
-- Do not add Android, Termux, Windows, or PowerShell implementations.
-- Do not add features designed to attack or disrupt networks without authorization.
+Never claim a capability is implemented unless the code and tests prove it.
 
-## Ownership and Contributions
+## Before changing code
 
-The original work and code authored by the project maintainer remain the maintainer's work and are not transferred to contributors by submitting a pull request.
+Inspect:
 
-Contributors retain authorship of their own original contributions, subject to the repository's MIT License and the rights granted by that license. By submitting a contribution, the contributor grants the project the permissions required to use, modify, distribute, and sublicense that contribution as part of the project under the applicable license.
+```bash
+git status
+git diff
+git log --oneline -10
+```
 
-Contributors must not claim ownership of code they did not author. Likewise, the maintainer must not claim authorship of a contributor's original work.
+Read the relevant script completely and identify the smallest correct change.
 
-## Significant Contributions
+## Verification
 
-If a contribution represents substantial work, a major feature, a major refactor, or a significant security/architecture change, please notify the maintainer explicitly in the pull request description.
+Always run:
 
-For substantial contributions, include:
+```bash
+bash -n netwatch.sh netwatch-ipv6.sh netwatch-router.sh
+shellcheck netwatch.sh netwatch-ipv6.sh netwatch-router.sh
+```
 
-- a short description of what you built;
-- the parts of the project you authored or substantially changed;
-- the approximate scope of the work;
-- any important design or security decisions;
-- any relevant tests or benchmarks.
+and the relevant test scripts under `tests/`.
 
-The maintainer may acknowledge substantial contributors in project documentation or release notes when appropriate.
+Destructive firewall behavior must be tested through mocks. Do not run regression tests against an unauthorized or production network.
 
-## Security
+## Test expectations
 
-Report security issues privately where possible. Never commit credentials, tokens, private keys, personal network logs, or generated runtime state.
+When changing validation, firewall, state, output, router, or update behavior, add or update a regression test.
+
+Important cases include:
+
+- invalid addresses and malformed MACs;
+- `block`/`unblock` idempotency;
+- duplicate rules;
+- partial firewall failure and rollback;
+- ownership rejection for unrelated chains;
+- dry-run non-modification;
+- JSON/CSV parsing;
+- stale PID files and PID reuse;
+- router argument boundaries;
+- SSH connection failures;
+- missing dependencies.
+
+## Documentation
+
+Update `README.md` and command help whenever user-facing behavior changes.
+
+Mark functionality explicitly as implemented, unavailable, experimental, gateway-only, or root-required.
+
+## Security issues
+
+Do not disclose exploitable security details in public issues when private reporting is practical. See `SECURITY.md`.
+
+## Git hygiene
+
+Do not force-push, skip hooks, modify global/local Git configuration, or create empty commits. Stage only intended files and use descriptive commit messages.

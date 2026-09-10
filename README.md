@@ -1,189 +1,198 @@
-# netwatch 🔍
+# NETWATCH
 
-A Bash-based network monitoring and management toolkit for Linux. Designed for home lab admins, sysadmins, and administrators who need visibility and controlled network operations on systems they own or are authorized to manage.
+NETWATCH is a Linux-only Bash toolkit for network discovery and controlled gateway administration on systems and networks you are authorized to manage.
 
-> **⚠️ Legal notice:** Use netwatch only on networks and systems you own or have explicit permission to administer.
+## Current version
 
-## Platform
+**1.3.1** (stabilization branch; the published `v1.3.0` release is historical).
 
-**Linux only.** Android/Termux and Windows/PowerShell are not supported by this repository.
+The main script is the authoritative software-version source used by the update checker.
 
-## Features
+## Supported surface
 
-- **Network scanner** — Discover active devices on the detected local IPv4 subnet with IP, MAC, hostname, and vendor information.
-- **Device identification** — Inspect a device for reverse DNS, vendor information, open TCP services, and OS hints when privileges permit.
-- **IPv6 discovery and control** — Discover on-link IPv6 neighbors, identify IPv6 hosts with Nmap, and block IPv6 traffic from an authorized Linux gateway/router with `ip6tables`.
-- **Bandwidth throttling** — Limit a device's bandwidth using Linux Traffic Control (`tc` + `htb`) on a compatible gateway/router setup.
-- **Device blocking** — Block a device using `iptables` in a gateway/router setup. When `arpspoof` is installed, the Linux gateway block path also uses ARP spoofing against the target and gateway.
-- **Router integration bridge** — Connect to vendor-specific routers over SSH and run administrator-supplied router commands or scripts without embedding a fake universal router CLI into netwatch.
-- **Monitor mode** — Auto-refreshing live network view.
-- **Export** — Save scan results as CSV or JSON.
-- **Interactive menu** — Operate netwatch without memorizing CLI syntax.
-- **Dry-run mode** — Preview supported changes before applying them.
+| Capability | Status | Notes |
+|---|---|---|
+| IPv4 scan | Implemented | Nmap host discovery plus Linux neighbor table |
+| IPv4 identify | Implemented | Nmap service/OS detection; strict IPv4 or MAC target validation |
+| IPv4 block | Implemented | Linux gateway/router only; Netfilter chain is ownership-marked |
+| IPv4 unblock | Implemented | Idempotent and ownership-aware |
+| IPv4 monitor | Implemented | Refreshing scan |
+| CSV/JSON export | Implemented | Machine-readable output is kept separate from diagnostics |
+| Dry-run | Implemented | No firewall, QoS, ARP, or persistent-state writes |
+| Persistent IPv4 firewall state | Optional | Requires `iptables-save` and `/etc/iptables` write access |
+| ARP spoof assistance | Optional | Uses `arpspoof` only when installed; PID ownership is checked before termination |
+| IPv6 scan | Implemented | On-link Linux IPv6 neighbor discovery |
+| IPv6 identify | Implemented | Nmap IPv6 mode with strict validation |
+| IPv6 block/unblock | Implemented | Linux IPv6 gateway/router only; ownership-marked chain |
+| IPv6 reset | Implemented | Removes only state recorded by NETWATCH and only from an owned chain |
+| Throttle/unthrottle | **Unavailable** | QoS is intentionally disabled until a safe `tc` design is implemented |
+| Router SSH bridge | Implemented | Vendor-neutral; explicit host-key verification |
+| Automatic self-update | **Disabled** | `update` only checks the remote version and never executes downloaded code |
 
 ## Requirements
 
-### Core netwatch
+Core commands need only the tools required by that command.
 
-Required:
+For scanning: Bash, `nmap`, `ip`, `awk`, `mktemp`.
 
-- Bash
-- `nmap`
-- `ip` / `iproute2`
-- `iptables`
-- `tc` / `iproute2`
-- `awk`
+For identification: Bash, `nmap`, `ip`, `awk`, `python3`.
 
-Optional:
+For IPv4 firewall control: Bash, `iptables`, `ip`, `awk`, `python3`. `arpspoof` and `arping` are optional.
 
-- `arpspoof` (`dsniff`) — ARP-based gateway blocking assistance
-- `curl` or `wget` — update checks
-- `ipcalc` — subnet detection helper
-- `dig` — reverse DNS
-- `avahi-utils` — optional mDNS tooling
-- `samba-common-bin` — optional NetBIOS tooling
+For IPv6 control: Bash, `ip`, `ip6tables`, `awk`, `python3`; `nmap` is needed for identification.
 
-### IPv6 helper
-
-`netwatch-ipv6.sh` additionally uses:
-
-- `python3` — strict IPv6 address validation
-- `ip6tables` — IPv6 gateway blocking
-- `ping` — on-link all-nodes discovery when available
-- `nmap` — IPv6 identification
-
-### Router bridge
-
-`netwatch-router.sh` uses:
-
-- OpenSSH client (`ssh`)
+For the router bridge: OpenSSH client.
 
 Debian/Ubuntu example:
 
 ```bash
-sudo apt install bash nmap iproute2 iptables dsniff curl ipcalc dnsutils python3 openssh-client
+sudo apt install bash nmap iproute2 iptables python3 openssh-client
+# Optional ARP support:
+sudo apt install dsniff iputils-arping
 ```
 
 ## Installation
 
 ```bash
-git clone https://github.com/sudomarc/NETWATCH-carbone.git
-cd NETWATCH-carbone
+git clone https://github.com/sudomarc/NETWATCH.git
+cd NETWATCH
 chmod +x netwatch.sh netwatch-ipv6.sh netwatch-router.sh
-sudo ./netwatch.sh
 ```
 
-## Usage
+No installer script is required.
 
-### Core IPv4 tool
+## IPv4 usage
 
-```text
-netwatch [--dry-run] [--persistent] <command> [args]
+```bash
+sudo ./netwatch.sh scan
+sudo ./netwatch.sh scan json
+sudo ./netwatch.sh scan csv
+
+sudo ./netwatch.sh identify 192.168.1.42
+sudo ./netwatch.sh identify AA:BB:CC:DD:EE:FF
+
+sudo ./netwatch.sh --dry-run block 192.168.1.42
+sudo ./netwatch.sh block 192.168.1.42
+sudo ./netwatch.sh unblock 192.168.1.42
+
+sudo ./netwatch.sh monitor 10
+sudo ./netwatch.sh export json
+sudo ./netwatch.sh list
+sudo ./netwatch.sh reset
 ```
 
-### IPv6 helper
+Blocking is valid only when the Linux host is actually forwarding IPv4 traffic. The default gateway itself is never an allowed target.
+
+`block` and `unblock` use the dedicated `NETWATCH_BLOCK` chain only when that chain is explicitly marked as NETWATCH-owned. An unrelated pre-existing chain with the same name is rejected rather than modified.
+
+## IPv6 usage
 
 ```bash
 sudo ./netwatch-ipv6.sh scan
 sudo ./netwatch-ipv6.sh scan json
+sudo ./netwatch-ipv6.sh scan csv
+
 sudo ./netwatch-ipv6.sh identify 2001:db8::10
 sudo ./netwatch-ipv6.sh --dry-run block 2001:db8::10
 sudo ./netwatch-ipv6.sh block 2001:db8::10
 sudo ./netwatch-ipv6.sh unblock 2001:db8::10
+sudo ./netwatch-ipv6.sh reset
 ```
 
-IPv6 scanning is based on the active Linux IPv6 interface and its neighbor table; it does not attempt to brute-force an entire `/64` address space.
+IPv6 discovery reads the Linux neighbor table after stimulating on-link neighbor discovery when `ping` is available. It does not brute-force an IPv6 `/64`.
 
-### Router integration bridge
+IPv6 blocking requires forwarding and refuses to block the configured default IPv6 gateway.
 
-The router bridge is intentionally vendor-neutral. Router vendors expose incompatible CLIs/APIs, so netwatch does not pretend that one command syntax can safely configure every router.
+## Dry-run contract
 
-Configure the SSH target with environment variables:
+`--dry-run` guarantees that control commands do not:
+
+- modify `iptables` or `ip6tables`;
+- modify `tc`;
+- create ARP spoofing processes;
+- modify persistent firewall files;
+- modify NETWATCH state files.
+
+The command still performs read-only validation and network-state discovery needed to describe what would happen.
+
+## Persistence
+
+`--persistent` applies to IPv4 firewall control. On successful block/unblock, NETWATCH writes an `iptables-save` snapshot to:
+
+```text
+/etc/iptables/rules.v4
+```
+
+This does not guarantee boot-time restoration on every distribution; a distribution-specific firewall restore service/package may still be required.
+
+A persistence failure is reported as a failure. NETWATCH does not silently claim that persistence succeeded.
+
+## Runtime state
+
+By default:
+
+- unprivileged operations use `${XDG_CONFIG_HOME:-$HOME/.config}/netwatch`;
+- root control operations use `/etc/netwatch`.
+
+`NETWATCH_CONFIG` can override the location, but root operations refuse non-root-owned or group/world-writable configuration directories.
+
+Runtime files include block state, scan logs, generated exports, and ARP-spoof PID files. They are ignored by Git.
+
+## Router bridge
+
+The router bridge does not guess a vendor CLI.
 
 ```bash
 export NETWATCH_ROUTER_HOST=192.168.1.1
 export NETWATCH_ROUTER_USER=admin
 export NETWATCH_ROUTER_PORT=22
 export NETWATCH_ROUTER_KEY="$HOME/.ssh/router_ed25519"
-```
 
-Check connectivity:
-
-```bash
 ./netwatch-router.sh check
-```
-
-Execute an administrator-supplied router command:
-
-```bash
 ./netwatch-router.sh exec show ipv6 interface
-```
-
-Apply a local router configuration script:
-
-```bash
 ./netwatch-router.sh apply ./router-config.sh
 ```
 
-The bridge does not select or invent vendor-specific commands. The supplied command/script is the administrator's responsibility for the target router.
+Security properties:
 
-## Commands
+- `BatchMode=yes`;
+- explicit `StrictHostKeyChecking=yes`;
+- connection timeout and server-alive limits;
+- no `eval`;
+- no `StrictHostKeyChecking=no`;
+- no `/dev/null` `known_hosts` override.
 
-| Command | Description |
-|---|---|
-| `menu` | Launch interactive TUI |
-| `scan [table\|json\|csv]` | Scan the detected local IPv4 subnet |
-| `monitor [interval]` | Auto-refresh every N seconds |
-| `identify <ip\|mac>` | Inspect a device |
-| `block <ip\|mac>` | Block a device from the Linux gateway |
-| `unblock <ip\|mac>` | Remove a block and stop associated ARP spoofing |
-| `throttle <mac> <speed>` | Limit bandwidth from the Linux gateway |
-| `unthrottle <mac>` | Remove a bandwidth limit |
-| `list` | Show blocked/throttled state |
-| `export [csv\|json]` | Export scan results |
-| `reset` | Clear Netwatch control state |
-| `update` | Check for a newer version |
-| `help` | Show help |
+The router command/script remains an administrator-supplied remote operation. Do not point it at systems you are not authorized to administer.
 
-## Network model
+## Testing
 
-Netwatch is a Linux network administration utility. IPv4 blocking and throttling are gateway/router functions; running the tool on an ordinary client does not make that machine the network gateway.
+Run locally:
 
-The IPv4 scan refreshes stale neighbor entries before reading MAC addresses. The IPv4 blocking path is restricted to a Linux gateway/router and may use `arpspoof` when that tool is installed. `unblock` stops the Netwatch-tracked ARP spoofing processes and restores the gateway's ARP announcement when possible.
+```bash
+bash -n netwatch.sh
+bash -n netwatch-ipv6.sh
+bash -n netwatch-router.sh
 
-IPv6 control is provided by `netwatch-ipv6.sh` and is also gateway/router-only. It uses `ip6tables` and Linux IPv6 forwarding and refuses to block the configured default IPv6 gateway.
+command -v shellcheck && shellcheck netwatch.sh netwatch-ipv6.sh netwatch-router.sh
 
-Do not use network-control commands on networks or devices you are not authorized to administer.
-
-## Configuration
-
-Default configuration directory:
-
-```text
-~/.config/netwatch/
+bash tests/test_validation.sh
+bash tests/test_output.sh
+bash tests/test_cli.sh
+bash tests/test_firewall.sh
+bash tests/test_ipv6.sh
+bash tests/test_router.sh
 ```
 
-Override it with `NETWATCH_CONFIG`.
+The firewall and IPv6 tests use mocks. They do not require a real gateway or a real firewall configuration.
 
-Typical files include:
+## Security
 
-- `blocked_macs`
-- `throttled_macs`
-- `scan_history.log`
-- `blocked_ipv6`
-- generated `export_*.csv` / `export_*.json`
-- ARP-spoof PID files for active gateway blocks
-
-Runtime state is excluded from version control.
-
-## Vendor information
-
-Vendor information is based on a limited OUI mapping and optional `macvendors.com` lookup. It should be treated as best-effort identification, not authoritative hardware identification.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+See [SECURITY.md](SECURITY.md). Network-control operations are intended only for systems and networks you own or are explicitly authorized to administer.
 
 ## Contributing
 
-This is a Linux-only Bash project. See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
