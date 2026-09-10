@@ -81,7 +81,9 @@ detect_ipv6(){
     addr=$(ip -6 addr show dev "$IFACE" scope global 2>/dev/null | awk '/inet6/ && $2 !~ /^fe80:/ {print $2; exit}')
     [[ -n "$addr" ]] || die "No global IPv6 address found on $IFACE."
     GATEWAY_IPV6=$(awk '{print $3}' <<< "$route")
-    [[ -n "$GATEWAY_IPV6" ]] && GATEWAY_IPV6=$(normalize_ipv6 "$GATEWAY_IPV6") || true
+    if [[ -n "$GATEWAY_IPV6" ]]; then
+        GATEWAY_IPV6=$(normalize_ipv6 "$GATEWAY_IPV6") || true
+    fi
     info "Interface: $IFACE${GATEWAY_IPV6:+ | Gateway: $GATEWAY_IPV6}"
 }
 
@@ -173,7 +175,9 @@ ensure_chain(){
 
 rollback_block(){
     local target=$1 hook_added=$2 chain_created=$3
-    "$hook_added" && ip6tables -D FORWARD -j NETWATCH6_BLOCK >/dev/null 2>&1 || true
+    if "$hook_added"; then
+        ip6tables -D FORWARD -j NETWATCH6_BLOCK >/dev/null 2>&1 || true
+    fi
     ip6tables -D NETWATCH6_BLOCK -d "$target" -j DROP >/dev/null 2>&1 || true
     ip6tables -D NETWATCH6_BLOCK -s "$target" -j DROP >/dev/null 2>&1 || true
     if "$chain_created"; then
