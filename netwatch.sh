@@ -159,7 +159,7 @@ json_escape(){
 
 csv_escape(){
     local value=$1
-    value=${value//"/""}
+    value=$(printf '%s' "$value" | sed 's/"/""/g')
     printf '"%s"' "$value"
 }
 
@@ -504,7 +504,7 @@ identify(){
 
 update_cmd(){
     local remote_version
-    if [[ ! "$VERSION" =~ ^[0-9]+([.][0-9]+){0,2}$ ]]; then die "Local version is invalid: $VERSION"; fi
+    [[ "$VERSION" =~ ^[0-9]+([.][0-9]+){0,2}$ ]] || die "Local version is invalid: $VERSION"
     if command -v curl >/dev/null 2>&1; then
         remote_version=$(curl -fsSL --max-time 8 "$UPDATE_URL" 2>/dev/null | grep '^VERSION=' | head -n1 | cut -d'"' -f2)
     elif command -v wget >/dev/null 2>&1; then
