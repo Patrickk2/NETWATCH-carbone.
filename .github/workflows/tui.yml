@@ -1,0 +1,22 @@
+name: TUI
+
+on:
+  pull_request:
+  push:
+    branches: ["main", "feat/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  tui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python syntax
+        run: python3 -m py_compile ui/netwatch_tui.py
+      - name: TUI regression checks
+        run: bash tests/test_tui.sh
